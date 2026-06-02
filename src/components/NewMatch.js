@@ -2,15 +2,22 @@ import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { VALORANT_MAPS } from '../App'
 
-export default function NewMatch({ onSaved }) {
-  const [map, setMap] = useState('')
-  const [result, setResult] = useState('victoria')
-  const [scoreUs, setScoreUs] = useState('')
-  const [scoreThem, setScoreThem] = useState('')
-  const [notes, setNotes] = useState('')
+export default function NewMatch({ onSaved, editMatch = null }) {
+  const isEditing = !!editMatch
+
+  const [map, setMap] = useState(editMatch?.map || '')
+  const [result, setResult] = useState(editMatch?.result || 'victoria')
+  const [scoreUs, setScoreUs] = useState(editMatch?.score_us ?? '')
+  const [scoreThem, setScoreThem] = useState(editMatch?.score_them ?? '')
+  const [notes, setNotes] = useState(editMatch?.notes || '')
+  const [playedAt, setPlayedAt] = useState(
+    editMatch?.played_at
+      ? new Date(editMatch.played_at).toISOString().slice(0, 16)
+      : new Date().toISOString().slice(0, 16)
+  )
   const [players, setPlayers] = useState([])
   const [categories, setCategories] = useState([])
-  const [events, setEvents] = useState([]) // [{playerId, categoryId}]
+  const [events, setEvents] = useState([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -23,6 +30,16 @@ export default function NewMatch({ onSaved }) {
     ])
     setPlayers(p || [])
     setCategories(c || [])
+
+    if (isEditing && editMatch.id) {
+      const { data: existingEvents } = await supabase
+        .from('match_events')
+        .select('*')
+        .eq('match_id', editMatch.id)
+      if (existingEvents) {
+        setEvents(existingEvents.map(e => ({ playerId: e.player_id, categoryId: e.category_id })))
+      }
+    }
   }
 
   function addEvent() {
@@ -44,41 +61,58 @@ export default function NewMatch({ onSaved }) {
     setSaving(true)
     setError('')
 
-    const { data: match, error: matchError } = await supabase
-      .from('matches')
-      .insert({
-        map,
-        result,
-        notes: notes || null,
-        score_us: scoreUs ? parseInt(scoreUs) : null,
-        score_them: scoreThem ? parseInt(scoreThem) : null,
-      })
-      .select()
-      .single()
-
-    if (matchError) {
-      setSaving(false)
-      return setError('Error al guardar la partida: ' + matchError.message)
+    const matchData = {
+      map,
+      result,
+      notes: notes || null,
+      score_us: scoreUs !== '' ? parseInt(scoreUs) : null,
+      score_them: scoreThem !== '' ? parseInt(scoreThem) : null,
+      played_at: new Date(playedAt).toISOString(),
     }
 
-    if (events.length > 0) {
-      const validEvents = events.filter(e => e.playerId && e.categoryId)
-      if (validEvents.length > 0) {
-        const eventsToInsert = validEvents.map(e => {
-          const cat = categories.find(c => c.id === e.categoryId)
-          return {
-            match_id: match.id,
-            player_id: e.playerId,
-            category_id: e.categoryId,
-            points: cat?.points || 0
-          }
-        })
+    let matchId
 
-        const { error: eventsError } = await supabase.from('match_events').insert(eventsToInsert)
-        if (eventsError) {
-          setSaving(false)
-          return setError('Error al guardar eventos: ' + eventsError.message)
+    if (isEditing) {
+      const { error: matchError } = await supabase
+        .from('matches')
+        .update({ ...matchData, edited_at: new Date().toISOString() })
+        .eq('id', editMatch.id)
+
+      if (matchError) {
+        setSaving(false)
+        return setError('Error al actualizar: ' + matchError.message)
+      }
+      matchId = editMatch.id
+      await supabase.from('match_events').delete().eq('match_id', matchId)
+    } else {
+      const { data: match, error: matchError } = await supabase
+        .from('matches')
+        .insert(matchData)
+        .select()
+        .single()
+
+      if (matchError) {
+        setSaving(false)
+        return setError('Error al guardar la partida: ' + matchError.message)
+      }
+      matchId = match.id
+    }
+
+    const validEvents = events.filter(e => e.playerId && e.categoryId)
+    if (validEvents.length > 0) {
+      const eventsToInsert = validEvents.map(e => {
+        const cat = categories.find(c => c.id === e.categoryId)
+        return {
+          match_id: matchId,
+          player_id: e.playerId,
+          category_id: e.categoryId,
+          points: cat?.points || 0
         }
+      })
+      const { error: eventsError } = await supabase.from('match_events').insert(eventsToInsert)
+      if (eventsError) {
+        setSaving(false)
+        return setError('Error al guardar eventos: ' + eventsError.message)
       }
     }
 
@@ -88,7 +122,6 @@ export default function NewMatch({ onSaved }) {
 
   const getCat = id => categories.find(c => c.id === id)
 
-  // Count porotos per player for preview
   const preview = {}
   events.forEach(e => {
     if (!e.playerId || !e.categoryId) return
@@ -99,7 +132,7 @@ export default function NewMatch({ onSaved }) {
 
   return (
     <div>
-      <h2>🎮 Registrar Partida</h2>
+      <h2>{isEditing ? '✏️ Editar Partida' : '🎮 Registrar Partida'}</h2>
 
       {players.length === 0 && (
         <div style={{ padding: 16, background: 'var(--accent-dim)', borderRadius: 8, border: '1px solid rgba(255,70,85,0.3)', marginBottom: 16, fontSize: 13, color: 'var(--accent)' }}>
@@ -108,9 +141,17 @@ export default function NewMatch({ onSaved }) {
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-        {/* Match info */}
         <div className="card">
           <h3>Información de la partida</h3>
+
+          <div className="form-group">
+            <label>Fecha y hora</label>
+            <input
+              type="datetime-local"
+              value={playedAt}
+              onChange={e => setPlayedAt(e.target.value)}
+            />
+          </div>
 
           <div className="form-group">
             <label>Mapa</label>
@@ -174,7 +215,6 @@ export default function NewMatch({ onSaved }) {
           </div>
         </div>
 
-        {/* Events & preview */}
         <div>
           <div className="card" style={{ marginBottom: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -223,7 +263,6 @@ export default function NewMatch({ onSaved }) {
             })}
           </div>
 
-          {/* Preview */}
           {Object.keys(preview).length > 0 && (
             <div className="card">
               <h3>Preview de porotos</h3>
@@ -251,13 +290,12 @@ export default function NewMatch({ onSaved }) {
       )}
 
       <div style={{ marginTop: 20, display: 'flex', gap: 10 }}>
-        <button
-          className="btn btn-primary"
-          onClick={handleSave}
-          disabled={saving || !map}
-        >
-          {saving ? 'Guardando...' : '✓ Guardar Partida'}
+        <button className="btn btn-primary" onClick={handleSave} disabled={saving || !map}>
+          {saving ? 'Guardando...' : isEditing ? '✓ Guardar Cambios' : '✓ Guardar Partida'}
         </button>
+        {isEditing && (
+          <button className="btn" onClick={onSaved}>Cancelar</button>
+        )}
       </div>
     </div>
   )

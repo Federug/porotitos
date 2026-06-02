@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import NewMatch from './NewMatch'
 
 export default function MatchHistory() {
   const [matches, setMatches] = useState([])
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState(null)
   const [matchDetails, setMatchDetails] = useState({})
+  const [editingMatch, setEditingMatch] = useState(null)
 
   useEffect(() => { loadMatches() }, [])
 
@@ -18,8 +20,8 @@ export default function MatchHistory() {
     setLoading(false)
   }
 
-  async function loadDetails(matchId) {
-    if (matchDetails[matchId]) return
+  async function loadDetails(matchId, force = false) {
+    if (matchDetails[matchId] && !force) return
     const { data } = await supabase
       .from('match_events')
       .select('*, players(name, avatar_color), categories(name, points)')
@@ -42,7 +44,20 @@ export default function MatchHistory() {
     }
   }
 
+  function handleEditSaved() {
+    setEditingMatch(null)
+    loadMatches()
+    if (expanded) {
+      setMatchDetails(prev => { const n = { ...prev }; delete n[expanded]; return n })
+      loadDetails(expanded, true)
+    }
+  }
+
   if (loading) return <div className="loading">Cargando historial...</div>
+
+  if (editingMatch) {
+    return <NewMatch editMatch={editingMatch} onSaved={handleEditSaved} />
+  }
 
   return (
     <div>
@@ -59,7 +74,6 @@ export default function MatchHistory() {
             const details = matchDetails[m.id] || []
             const isOpen = expanded === m.id
 
-            // Group events by player
             const byPlayer = {}
             details.forEach(e => {
               const pid = e.player_id
@@ -84,6 +98,18 @@ export default function MatchHistory() {
                   {m.score_us != null && m.score_them != null && (
                     <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
                       {m.score_us} – {m.score_them}
+                    </span>
+                  )}
+                  {m.edited_at && (
+                    <span style={{
+                      fontSize: 11,
+                      color: 'var(--accent-amber)',
+                      background: 'rgba(245,166,35,0.1)',
+                      border: '1px solid rgba(245,166,35,0.25)',
+                      borderRadius: 4,
+                      padding: '2px 7px',
+                    }}>
+                      ✎ EDITADO: {new Date(m.edited_at).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </span>
                   )}
                   <span style={{ flex: 1 }} />
@@ -134,9 +160,16 @@ export default function MatchHistory() {
                       </div>
                     )}
 
-                    <div style={{ marginTop: 14, display: 'flex', justifyContent: 'flex-end' }}>
+                    <div style={{ marginTop: 14, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                      <button
+                        className="btn btn-sm"
+                        style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}
+                        onClick={e => { e.stopPropagation(); setEditingMatch(m) }}
+                      >
+                        ✎ Editar
+                      </button>
                       <button className="btn btn-sm btn-danger" onClick={() => deleteMatch(m.id)}>
-                        Eliminar partida
+                        Eliminar
                       </button>
                     </div>
                   </div>
