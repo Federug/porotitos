@@ -5,6 +5,7 @@ import NewMatch from './components/NewMatch'
 import MatchHistory from './components/MatchHistory'
 import Players from './components/Players'
 import Categories from './components/Categories'
+import Trophies from './components/Trophies'
 import Setup from './components/Setup'
 import './App.css'
 
@@ -28,14 +29,13 @@ export default function App() {
 
   const refresh = () => setRefreshKey(k => k + 1)
 
-  if (!isConfigured) {
-    return <Setup />
-  }
+  if (!isConfigured) return <Setup />
 
   const nav = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
     { id: 'new-match', label: 'Nueva Partida', icon: '🎮' },
     { id: 'history', label: 'Historial', icon: '📋' },
+    { id: 'trophies', label: 'Trofeos', icon: '🏆' },
     { id: 'players', label: 'Jugadores', icon: '👥' },
     { id: 'categories', label: 'Categorías', icon: '🏷️' },
   ]
@@ -62,15 +62,14 @@ export default function App() {
             </button>
           ))}
         </nav>
-        <div className="sidebar-footer">
-          <p>Valorant Team Tracker</p>
-        </div>
+        <div className="sidebar-footer"><p>Valorant Team Tracker</p></div>
       </aside>
 
       <main className="main-content">
         {page === 'dashboard' && <Dashboard key={refreshKey} />}
         {page === 'new-match' && <NewMatch onSaved={() => { refresh(); setPage('dashboard') }} />}
         {page === 'history' && <MatchHistory key={refreshKey} />}
+        {page === 'trophies' && <Trophies key={refreshKey} />}
         {page === 'players' && <Players key={refreshKey} onUpdate={refresh} />}
         {page === 'categories' && <Categories key={refreshKey} />}
       </main>
