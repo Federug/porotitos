@@ -1,11 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import NewMatch from './NewMatch'
-
+ 
 function getInitials(name) {
   return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
 }
-
+ 
+function formatDate(dateStr) {
+  if (!dateStr) return ''
+  // If it's just a date (YYYY-MM-DD), parse directly to avoid timezone shift
+  const dateOnly = String(dateStr).slice(0, 10)
+  const [year, month, day] = dateOnly.split('-').map(Number)
+  if (!year || !month || !day) return ''
+  return `${String(day).padStart(2,'0')}/${String(month).padStart(2,'0')}/${year}`
+}
+ 
 export default function MatchHistory() {
   const [matches, setMatches] = useState([])
   const [loading, setLoading] = useState(true)
@@ -16,9 +25,9 @@ export default function MatchHistory() {
   const [allPlayers, setAllPlayers] = useState([])
   const dragItem = useRef(null)
   const dragOver = useRef(null)
-
+ 
   useEffect(() => { loadAll() }, [])
-
+ 
   async function loadAll() {
     const [{ data: m }, { data: p }] = await Promise.all([
       supabase.from('matches').select('*').order('sort_order', { ascending: true }).order('played_at', { ascending: false }),
@@ -28,7 +37,7 @@ export default function MatchHistory() {
     setAllPlayers(p || [])
     setLoading(false)
   }
-
+ 
   async function loadDetails(matchId, force = false) {
     if (matchDetails[matchId] && !force) return
     const [{ data: events }, { data: participants }] = await Promise.all([
@@ -38,19 +47,19 @@ export default function MatchHistory() {
     setMatchDetails(prev => ({ ...prev, [matchId]: events || [] }))
     setMatchParticipants(prev => ({ ...prev, [matchId]: participants || [] }))
   }
-
+ 
   async function deleteMatch(id) {
     if (!window.confirm('¿Eliminar esta partida?')) return
     await supabase.from('matches').delete().eq('id', id)
     setMatches(matches.filter(m => m.id !== id))
   }
-
+ 
   function toggleExpand(id) {
     if (expanded === id) { setExpanded(null); return }
     setExpanded(id)
     loadDetails(id)
   }
-
+ 
   function handleEditSaved() {
     setEditingMatch(null)
     loadAll()
@@ -59,39 +68,39 @@ export default function MatchHistory() {
       loadDetails(expanded, true)
     }
   }
-
+ 
   // Drag and drop reorder
   function handleDragStart(e, index) {
     dragItem.current = index
     e.dataTransfer.effectAllowed = 'move'
   }
-
+ 
   function handleDragEnter(e, index) {
     dragOver.current = index
     e.preventDefault()
   }
-
+ 
   async function handleDrop() {
     const from = dragItem.current
     const to = dragOver.current
     if (from === null || to === null || from === to) return
-
+ 
     const reordered = [...matches]
     const [moved] = reordered.splice(from, 1)
     reordered.splice(to, 0, moved)
     setMatches(reordered)
-
+ 
     // Persist sort order
     const updates = reordered.map((m, i) => supabase.from('matches').update({ sort_order: i }).eq('id', m.id))
     await Promise.all(updates)
-
+ 
     dragItem.current = null
     dragOver.current = null
   }
-
+ 
   if (loading) return <div className="loading">Cargando historial...</div>
   if (editingMatch) return <NewMatch editMatch={editingMatch} onSaved={handleEditSaved} />
-
+ 
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20 }}>
@@ -99,7 +108,7 @@ export default function MatchHistory() {
         <span style={{ flex: 1 }} />
         <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>⠿ Arrastrá para reordenar</span>
       </div>
-
+ 
       {matches.length === 0 ? (
         <div className="empty"><div className="empty-icon">🎮</div><p>No hay partidas registradas todavía.</p></div>
       ) : (
@@ -108,7 +117,7 @@ export default function MatchHistory() {
             const details = matchDetails[m.id] || []
             const participants = matchParticipants[m.id] || []
             const isOpen = expanded === m.id
-
+ 
             const byPlayer = {}
             details.forEach(e => {
               const pid = e.player_id
@@ -116,7 +125,7 @@ export default function MatchHistory() {
               byPlayer[pid].events.push(e)
               byPlayer[pid].total += e.points
             })
-
+ 
             // Add participants with 0 porotos who didn't get events
             participants.forEach(mp => {
               if (!byPlayer[mp.player_id]) {
@@ -126,7 +135,7 @@ export default function MatchHistory() {
                 }
               }
             })
-
+ 
             return (
               <div
                 key={m.id}
@@ -152,20 +161,20 @@ export default function MatchHistory() {
                   )}
                   {m.edited_at && (
                     <span style={{ fontSize: 11, color: 'var(--accent-amber)', background: 'rgba(245,166,35,0.1)', border: '1px solid rgba(245,166,35,0.25)', borderRadius: 4, padding: '2px 7px' }}>
-                      ✎ EDITADO: {new Date(m.edited_at).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                      ✎ EDITADO: {formatDate(m.edited_at)}
                     </span>
                   )}
                   <span style={{ flex: 1 }} />
                   <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                    {new Date(m.played_at + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                    {formatDate(m.played_at)}
                   </span>
                   <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{isOpen ? '▲' : '▼'}</span>
                 </div>
-
+ 
                 {isOpen && (
                   <div style={{ borderTop: '1px solid var(--border)', padding: '14px 18px' }}>
                     {m.notes && <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 14, fontStyle: 'italic' }}>"{m.notes}"</p>}
-
+ 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
                       {Object.entries(byPlayer).map(([pid, pl], i) => (
                         <div key={i} style={{ background: 'var(--bg-surface)', borderRadius: 8, padding: 12, border: '1px solid var(--border)' }}>
@@ -193,7 +202,7 @@ export default function MatchHistory() {
                         </div>
                       ))}
                     </div>
-
+ 
                     <div style={{ marginTop: 14, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                       <button className="btn btn-sm" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}
                         onClick={e => { e.stopPropagation(); setEditingMatch(m) }}>✎ Editar</button>
@@ -209,3 +218,4 @@ export default function MatchHistory() {
     </div>
   )
 }
+ 
