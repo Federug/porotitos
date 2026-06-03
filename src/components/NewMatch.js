@@ -12,8 +12,8 @@ export default function NewMatch({ onSaved, editMatch = null }) {
   const [notes, setNotes] = useState(editMatch?.notes || '')
   const [playedAt, setPlayedAt] = useState(
     editMatch?.played_at
-      ? new Date(editMatch.played_at).toISOString().slice(0, 16)
-      : new Date().toISOString().slice(0, 16)
+      ? new Date(editMatch.played_at).toISOString().slice(0, 10)
+      : new Date().toISOString().slice(0, 10)
   )
   const [allPlayers, setAllPlayers] = useState([])
   const [selectedPlayers, setSelectedPlayers] = useState([])
@@ -24,7 +24,6 @@ export default function NewMatch({ onSaved, editMatch = null }) {
 
   useEffect(() => { loadData() }, [])
 
-  // Auto-calculate result from scores
   useEffect(() => {
     const us = parseInt(scoreUs)
     const them = parseInt(scoreThem)
@@ -44,22 +43,25 @@ export default function NewMatch({ onSaved, editMatch = null }) {
     setCategories(c || [])
 
     if (isEditing && editMatch.id) {
-      const { data: existingEvents } = await supabase
-        .from('match_events')
-        .select('*')
-        .eq('match_id', editMatch.id)
-      if (existingEvents) {
-        setEvents(existingEvents.map(e => ({ playerId: e.player_id, categoryId: e.category_id })))
-        const uniquePlayers = [...new Set(existingEvents.map(e => e.player_id))]
-        setSelectedPlayers(uniquePlayers)
+      const [{ data: existingEvents }, { data: matchPlayers }] = await Promise.all([
+        supabase.from('match_events').select('*').eq('match_id', editMatch.id),
+        supabase.from('match_players').select('player_id').eq('match_id', editMatch.id)
+      ])
+      if (existingEvents) setEvents(existingEvents.map(e => ({ playerId: e.player_id, categoryId: e.category_id })))
+      if (matchPlayers && matchPlayers.length > 0) {
+        setSelectedPlayers(matchPlayers.map(mp => mp.player_id))
+      } else if (existingEvents) {
+        setSelectedPlayers([...new Set(existingEvents.map(e => e.player_id))])
       }
     }
   }
 
   function togglePlayer(pid) {
-    setSelectedPlayers(prev =>
-      prev.includes(pid) ? prev.filter(id => id !== pid) : [...prev, pid]
-    )
+    setSelectedPlayers(prev => {
+      if (prev.includes(pid)) return prev.filter(id => id !== pid)
+      if (prev.length >= 5) return prev // max 5
+      return [...prev, pid]
+    })
   }
 
   function addEvent() {
@@ -80,34 +82,40 @@ export default function NewMatch({ onSaved, editMatch = null }) {
   async function handleSave() {
     if (!map) return setError('Seleccioná un mapa')
     if (!result) return setError('Ingresá el score o seleccioná el resultado')
+    if (selectedPlayers.length === 0) return setError('Seleccioná al menos un jugador')
     setSaving(true)
     setError('')
 
     const matchData = {
-      map,
-      result,
+      map, result,
       notes: notes || null,
       score_us: scoreUs !== '' ? parseInt(scoreUs) : null,
       score_them: scoreThem !== '' ? parseInt(scoreThem) : null,
-      played_at: new Date(playedAt).toISOString(),
+      played_at: playedAt,
     }
 
     let matchId
 
     if (isEditing) {
       const { error: matchError } = await supabase
-        .from('matches')
-        .update({ ...matchData, edited_at: new Date().toISOString() })
-        .eq('id', editMatch.id)
+        .from('matches').update({ ...matchData, edited_at: new Date().toISOString() }).eq('id', editMatch.id)
       if (matchError) { setSaving(false); return setError('Error: ' + matchError.message) }
       matchId = editMatch.id
-      await supabase.from('match_events').delete().eq('match_id', matchId)
+      await Promise.all([
+        supabase.from('match_events').delete().eq('match_id', matchId),
+        supabase.from('match_players').delete().eq('match_id', matchId)
+      ])
     } else {
       const { data: match, error: matchError } = await supabase
         .from('matches').insert(matchData).select().single()
       if (matchError) { setSaving(false); return setError('Error: ' + matchError.message) }
       matchId = match.id
     }
+
+    // Save match_players
+    await supabase.from('match_players').insert(
+      selectedPlayers.map(pid => ({ match_id: matchId, player_id: pid }))
+    )
 
     const validEvents = events.filter(e => e.playerId && e.categoryId)
     if (validEvents.length > 0) {
@@ -124,7 +132,6 @@ export default function NewMatch({ onSaved, editMatch = null }) {
   }
 
   const getCat = id => categories.find(c => c.id === id)
-
   const preview = {}
   events.forEach(e => {
     if (!e.playerId || !e.categoryId) return
@@ -151,8 +158,8 @@ export default function NewMatch({ onSaved, editMatch = null }) {
             <h3>Información de la partida</h3>
 
             <div className="form-group">
-              <label>Fecha y hora</label>
-              <input type="datetime-local" value={playedAt} onChange={e => setPlayedAt(e.target.value)} />
+              <label>Fecha</label>
+              <input type="date" value={playedAt} onChange={e => setPlayedAt(e.target.value)} />
             </div>
 
             <div className="form-group">
@@ -163,7 +170,6 @@ export default function NewMatch({ onSaved, editMatch = null }) {
               </select>
             </div>
 
-            {/* Score fields - auto-calc result */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 8, alignItems: 'flex-end', marginBottom: 16 }}>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label>Nuestros rounds</label>
@@ -176,26 +182,17 @@ export default function NewMatch({ onSaved, editMatch = null }) {
               </div>
             </div>
 
-            {/* Result display / manual override */}
             <div className="form-group">
               <label>Resultado {result && <span style={{ color: resultColor, marginLeft: 6, fontWeight: 600 }}>→ {result.toUpperCase()}</span>}</label>
               <div style={{ display: 'flex', gap: 8 }}>
                 {['victoria', 'derrota', 'empate'].map(r => (
-                  <button
-                    key={r}
-                    onClick={() => setResult(r)}
-                    className="btn"
-                    style={{
-                      flex: 1,
-                      background: result === r
-                        ? r === 'victoria' ? 'var(--accent-green)' : r === 'derrota' ? 'var(--accent)' : 'var(--accent-blue)'
-                        : 'transparent',
-                      borderColor: r === 'victoria' ? 'var(--accent-green)' : r === 'derrota' ? 'var(--accent)' : 'var(--accent-blue)',
-                      color: result === r ? (r === 'victoria' ? '#0d0f14' : 'white') : 'var(--text-secondary)',
-                      fontWeight: result === r ? 600 : 400,
-                      fontSize: 12
-                    }}
-                  >
+                  <button key={r} onClick={() => setResult(r)} className="btn" style={{
+                    flex: 1,
+                    background: result === r ? (r === 'victoria' ? 'var(--accent-green)' : r === 'derrota' ? 'var(--accent)' : 'var(--accent-blue)') : 'transparent',
+                    borderColor: r === 'victoria' ? 'var(--accent-green)' : r === 'derrota' ? 'var(--accent)' : 'var(--accent-blue)',
+                    color: result === r ? (r === 'victoria' ? '#0d0f14' : 'white') : 'var(--text-secondary)',
+                    fontWeight: result === r ? 600 : 400, fontSize: 12
+                  }}>
                     {r === 'victoria' ? '✓ Victoria' : r === 'derrota' ? '✗ Derrota' : '= Empate'}
                   </button>
                 ))}
@@ -208,37 +205,35 @@ export default function NewMatch({ onSaved, editMatch = null }) {
             </div>
           </div>
 
-          {/* Player selector */}
           <div className="card">
             <h3>Jugadores en la partida ({selectedPlayers.length}/5)</h3>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {allPlayers.map(p => {
                 const selected = selectedPlayers.includes(p.id)
+                const disabled = !selected && selectedPlayers.length >= 5
                 return (
-                  <button
-                    key={p.id}
-                    onClick={() => togglePlayer(p.id)}
-                    style={{
-                      padding: '7px 14px',
-                      borderRadius: 20,
-                      border: `2px solid ${selected ? p.avatar_color : 'var(--border)'}`,
-                      background: selected ? p.avatar_color + '22' : 'transparent',
-                      color: selected ? p.avatar_color : 'var(--text-secondary)',
-                      fontWeight: selected ? 600 : 400,
-                      fontSize: 13,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s'
-                    }}
-                  >
+                  <button key={p.id} onClick={() => togglePlayer(p.id)} disabled={disabled} style={{
+                    padding: '7px 14px', borderRadius: 20,
+                    border: `2px solid ${selected ? p.avatar_color : disabled ? 'var(--border)' : 'var(--border)'}`,
+                    background: selected ? p.avatar_color + '22' : 'transparent',
+                    color: selected ? p.avatar_color : disabled ? 'var(--text-muted)' : 'var(--text-secondary)',
+                    fontWeight: selected ? 600 : 400, fontSize: 13,
+                    cursor: disabled ? 'not-allowed' : 'pointer',
+                    opacity: disabled ? 0.4 : 1,
+                    transition: 'all 0.15s',
+                    display: 'flex', alignItems: 'center', gap: 6
+                  }}>
+                    {p.photo_url
+                      ? <img src={p.photo_url} alt="" style={{ width: 18, height: 18, borderRadius: '50%', objectFit: 'cover' }} />
+                      : null
+                    }
                     {selected ? '✓ ' : ''}{p.name}
                   </button>
                 )
               })}
             </div>
-            {selectedPlayers.length !== 5 && (
-              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
-                Seleccioná los 5 jugadores que participaron
-              </p>
+            {selectedPlayers.length >= 5 && (
+              <p style={{ fontSize: 11, color: 'var(--accent-amber)', marginTop: 8 }}>✓ 5 jugadores seleccionados</p>
             )}
           </div>
         </div>
@@ -247,20 +242,14 @@ export default function NewMatch({ onSaved, editMatch = null }) {
           <div className="card" style={{ marginBottom: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <h3 style={{ marginBottom: 0 }}>Asignar porotitos</h3>
-              <button className="btn btn-sm" onClick={addEvent} disabled={allPlayers.length === 0 || categories.length === 0}>
-                + Agregar
-              </button>
+              <button className="btn btn-sm" onClick={addEvent} disabled={allPlayers.length === 0 || categories.length === 0}>+ Agregar</button>
             </div>
 
             {events.length === 0 ? (
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '16px 0' }}>
-                Agregá eventos para asignar porotos
-              </p>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '16px 0' }}>Agregá eventos para asignar porotos</p>
             ) : events.map((ev, i) => {
               const cat = getCat(ev.categoryId)
-              const availablePlayers = selectedPlayers.length > 0
-                ? allPlayers.filter(p => selectedPlayers.includes(p.id))
-                : allPlayers
+              const availablePlayers = selectedPlayers.length > 0 ? allPlayers.filter(p => selectedPlayers.includes(p.id)) : allPlayers
               return (
                 <div key={i} className="event-builder">
                   <div className="event-row">
@@ -268,9 +257,7 @@ export default function NewMatch({ onSaved, editMatch = null }) {
                       {availablePlayers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                     <select value={ev.categoryId} onChange={e => updateEvent(i, 'categoryId', e.target.value)} style={{ flex: 2 }}>
-                      {categories.map(c => (
-                        <option key={c.id} value={c.id}>{c.points > 0 ? `+${c.points}` : c.points} 🫘 {c.name}</option>
-                      ))}
+                      {categories.map(c => <option key={c.id} value={c.id}>{c.points > 0 ? `+${c.points}` : c.points} 🫘 {c.name}</option>)}
                     </select>
                     {cat && <span className={`points-pill ${cat.points > 0 ? 'pos' : 'neg'}`}>{cat.points > 0 ? '+' : ''}{cat.points}</span>}
                     <button className="btn btn-sm btn-danger" onClick={() => removeEvent(i)}>×</button>
@@ -300,11 +287,7 @@ export default function NewMatch({ onSaved, editMatch = null }) {
         </div>
       </div>
 
-      {error && (
-        <div style={{ marginTop: 16, padding: 12, background: 'var(--accent-dim)', border: '1px solid rgba(255,70,85,0.3)', borderRadius: 8, color: 'var(--accent)', fontSize: 13 }}>
-          {error}
-        </div>
-      )}
+      {error && <div style={{ marginTop: 16, padding: 12, background: 'var(--accent-dim)', border: '1px solid rgba(255,70,85,0.3)', borderRadius: 8, color: 'var(--accent)', fontSize: 13 }}>{error}</div>}
 
       <div style={{ marginTop: 20, display: 'flex', gap: 10 }}>
         <button className="btn btn-primary" onClick={handleSave} disabled={saving || !map || !result}>
