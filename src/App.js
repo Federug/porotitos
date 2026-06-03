@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import Dashboard from './components/Dashboard'
+import PersonalDashboard from './components/PersonalDashboard'
+import ComparativeDashboard from './components/ComparativeDashboard'
 import NewMatch from './components/NewMatch'
 import MatchHistory from './components/MatchHistory'
 import Players from './components/Players'
@@ -33,6 +35,8 @@ export default function App() {
 
   const nav = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
+    { id: 'personal', label: 'Stats Personales', icon: '👤' },
+    { id: 'comparative', label: 'Comparativo', icon: '⚔️' },
     { id: 'new-match', label: 'Nueva Partida', icon: '🎮' },
     { id: 'history', label: 'Historial', icon: '📋' },
     { id: 'trophies', label: 'Trofeos', icon: '🏆' },
@@ -67,6 +71,8 @@ export default function App() {
 
       <main className="main-content">
         {page === 'dashboard' && <Dashboard key={refreshKey} />}
+        {page === 'personal' && <PersonalDashboard key={refreshKey} />}
+        {page === 'comparative' && <ComparativeDashboard key={refreshKey} />}
         {page === 'new-match' && <NewMatch onSaved={() => { refresh(); setPage('dashboard') }} />}
         {page === 'history' && <MatchHistory key={refreshKey} />}
         {page === 'trophies' && <Trophies key={refreshKey} />}
