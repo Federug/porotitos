@@ -23,51 +23,80 @@ const TROPHY_DEFS = [
 
 function getInitials(name) { return name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2) }
 
-function PlayerChip({ player, value, medal }) {
-  if (!player) return <div style={{ fontSize:12, color:'var(--text-muted)', padding:'8px 0' }}>Sin datos</div>
+function PlayerAvatar({ player, size=26 }) {
+  if (player.photo_url) return <img src={player.photo_url} alt="" style={{ width:size, height:size, borderRadius:'50%', objectFit:'cover', border:`2px solid ${player.avatar_color}55`, flexShrink:0 }} />
+  return <div className="player-avatar" style={{ width:size, height:size, fontSize:size*0.38, background:player.avatar_color+'22', color:player.avatar_color, border:`1px solid ${player.avatar_color}44`, flexShrink:0 }}>{getInitials(player.name)}</div>
+}
+
+function PlayerChip({ entry, medal }) {
   const m = MEDALS[medal]
+  const tied = entry?.tiedGroup?.length > 1
+  if (!entry?.player) return <div style={{ fontSize:12, color:'var(--text-muted)', padding:'8px 0', display:'flex', alignItems:'center', gap:6 }}><span style={{ fontSize:16 }}>{m.label}</span> Sin datos</div>
+
+  // If tied: show all players in the group side by side
+  const players = tied ? entry.tiedGroup.map(e => e.player) : [entry.player]
+
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', borderRadius:8, background: medal===0?m.color+'18':'var(--bg-surface)', border:`1px solid ${medal===0?m.color+'44':'var(--border)'}` }}>
-      <span style={{ fontSize:18, lineHeight:1 }}>{m.label}</span>
-      {player.photo_url
-        ? <img src={player.photo_url} alt="" style={{ width:26, height:26, borderRadius:'50%', objectFit:'cover', border:`2px solid ${player.avatar_color}55` }} />
-        : <div className="player-avatar" style={{ width:26, height:26, fontSize:10, background:player.avatar_color+'22', color:player.avatar_color, border:`1px solid ${player.avatar_color}44` }}>{getInitials(player.name)}</div>
-      }
+    <div style={{ display:'flex', alignItems:'center', gap:8, padding:'9px 12px', borderRadius:8, background: medal===0?m.color+'18':'var(--bg-surface)', border:`1px solid ${medal===0?m.color+'44':'var(--border)'}` }}>
+      <span style={{ fontSize:20, lineHeight:1, flexShrink:0 }}>{m.label}</span>
       <div style={{ flex:1, minWidth:0 }}>
-        <div style={{ fontWeight:600, fontSize:13, color: medal===0?m.color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{player.name}</div>
-        {value && <div style={{ fontSize:11, color:'var(--text-muted)' }}>{value}</div>}
+        <div style={{ display:'flex', flexWrap:'wrap', gap:6, alignItems:'center' }}>
+          {players.map((p, i) => (
+            <div key={p.id} style={{ display:'flex', alignItems:'center', gap:5 }}>
+              <PlayerAvatar player={p} size={22} />
+              <span style={{ fontWeight:600, fontSize:13, color: medal===0?m.color:'var(--text-primary)', whiteSpace:'nowrap' }}>{p.name}</span>
+              {i < players.length-1 && <span style={{ color:'var(--text-muted)', fontSize:11 }}>&</span>}
+            </div>
+          ))}
+        </div>
+        {entry.display && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>{tied ? `Empatados: ${entry.display}` : entry.display}</div>}
       </div>
     </div>
   )
 }
 
 function TrophyCard({ trophy }) {
+  const hasData = trophy.podium.length > 0
+  // Build display rows: deduplicate tied entries to show once per rank
+  const displayRows = []
+  let lastValue = null
+  let medalIdx = 0
+  trophy.podium.forEach(entry => {
+    if (entry.value !== lastValue) {
+      displayRows.push({ entry, medal: Math.min(medalIdx, 2) })
+      medalIdx++
+      lastValue = entry.value
+    }
+  })
+
   return (
     <div className="card" style={{
-      border:`1px solid ${trophy.podium[0]?trophy.color+'44':'var(--border)'}`,
-      background: trophy.podium[0] ? trophy.color+'08' : 'var(--bg-card)',
-      display:'flex', flexDirection:'column', gap:12
+      border:`1px solid ${hasData?trophy.color+'44':'var(--border)'}`,
+      background: hasData ? trophy.color+'08' : 'var(--bg-card)',
+      display:'flex', flexDirection:'column', gap:14,
+      minHeight: 200
     }}>
       {/* Header */}
-      <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+      <div style={{ display:'flex', alignItems:'center', gap:14 }}>
         <div style={{
-          width:48, height:48, borderRadius:12, flexShrink:0,
+          width:52, height:52, borderRadius:14, flexShrink:0,
           background:trophy.color+'22', border:`1px solid ${trophy.color}44`,
-          display:'flex', alignItems:'center', justifyContent:'center', fontSize:22
+          display:'flex', alignItems:'center', justifyContent:'center', fontSize:26
         }}>
           {trophy.icon}
         </div>
         <div>
-          <div style={{ fontFamily:'Rajdhani,sans-serif', fontWeight:700, fontSize:16, color:trophy.color }}>{trophy.label}</div>
-          <div style={{ fontSize:11, color:'var(--text-muted)' }}>{trophy.desc}</div>
+          <div style={{ fontFamily:'Rajdhani,sans-serif', fontWeight:700, fontSize:17, color:trophy.color }}>{trophy.label}</div>
+          <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>{trophy.desc}</div>
         </div>
       </div>
 
       {/* Podium */}
-      <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-        {[0,1,2].map(i => (
-          <PlayerChip key={i} player={trophy.podium[i]?.player} value={trophy.podium[i]?.display} medal={i} />
-        ))}
+      <div style={{ display:'flex', flexDirection:'column', gap:7 }}>
+        {!hasData
+          ? <div style={{ fontSize:12, color:'var(--text-muted)', padding:'8px 0' }}>Sin datos este mes</div>
+          : displayRows.map((row, i) => <PlayerChip key={i} entry={row.entry} medal={row.medal} />)
+        }
       </div>
     </div>
   )
@@ -185,10 +214,18 @@ export default function Trophies() {
             return { player:p, value:ratio, count, display:`${count}x (${(ratio*100).toFixed(0)}% partidas)` }
           }
           return { player:p, value:count, display:`${count} veces` }
-        }).filter(Boolean).sort((a,b) => def.higherIsBetter ? b.value-a.value : a.value-b.value)
+        }).filter(Boolean).sort((a,b) => b.value - a.value)
       }
 
-      return ranked.slice(0,3)
+      if (ranked.length === 0) return []
+      const podium = []
+      let i = 0
+      while (podium.length < 3 && i < ranked.length) {
+        const tiedGroup = ranked.filter(r => r.value === ranked[i].value)
+        tiedGroup.forEach(r => { if (podium.length < 3) podium.push({ ...r, tiedGroup }) })
+        i += tiedGroup.length
+      }
+      return podium
     }
 
     const results = TROPHY_DEFS.map(def => ({
@@ -226,7 +263,7 @@ export default function Trophies() {
       {!hasData ? (
         <div className="empty"><div className="empty-icon">🏆</div><p>No hay partidas en {MONTHS[month]} {year}.</p></div>
       ) : (
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:16 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(300px, 1fr))', gap:18 }}>
           {trophies.map(t => <TrophyCard key={t.id} trophy={t} />)}
         </div>
       )}
