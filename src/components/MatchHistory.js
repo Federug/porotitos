@@ -15,7 +15,7 @@ function formatDate(dateStr) {
   return `${String(day).padStart(2,'0')}/${String(month).padStart(2,'0')}/${year}`
 }
 
-export default function MatchHistory() {
+export default function MatchHistory({ isAdmin = false }) {
   const [matches, setMatches] = useState([])
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState(null)
@@ -206,7 +206,7 @@ export default function MatchHistory() {
                     <div style={{ marginTop: 14, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                       <button className="btn btn-sm" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}
                         onClick={e => { e.stopPropagation(); setEditingMatch(m) }}>✎ Editar</button>
-                      <button className="btn btn-sm btn-danger" onClick={() => deleteMatch(m.id)}>Eliminar</button>
+                      {isAdmin && <button className="btn btn-sm btn-danger" onClick={() => deleteMatch(m.id)}>Eliminar</button>}
                     </div>
                   </div>
                 )}

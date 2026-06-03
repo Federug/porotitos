@@ -129,7 +129,7 @@ function EditPlayerModal({ player, onSave, onClose }) {
   )
 }
 
-export default function Players({ onUpdate }) {
+export default function Players({ onUpdate, isAdmin = false }) {
   const [players, setPlayers] = useState([])
   const [loading, setLoading] = useState(true)
   const [newName, setNewName] = useState('')
@@ -221,7 +221,7 @@ export default function Players({ onUpdate }) {
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button className="btn btn-sm" style={{ borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }} onClick={() => setEditingPlayer(p)}>✎ Editar</button>
-                <button className="btn btn-sm btn-danger" onClick={() => deletePlayer(p.id)}>Eliminar</button>
+                {isAdmin && <button className="btn btn-sm btn-danger" onClick={() => deletePlayer(p.id)}>Eliminar</button>}
               </div>
             </div>
           ))}
