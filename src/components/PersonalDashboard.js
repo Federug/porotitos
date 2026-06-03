@@ -4,6 +4,12 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, L
 
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
+function parseDate(dateStr) {
+  const s = String(dateStr).slice(0, 10)
+  const [y, mo, d] = s.split('-').map(Number)
+  return { year: y, month: mo - 1, day: d }
+}
+
 const TT = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
   return (
@@ -45,16 +51,16 @@ export default function PersonalDashboard() {
   }
 
   const filteredMatches = allMatches.filter(m => {
-    const d = new Date(m.played_at+'T12:00:00')
-    if (d.getFullYear()!==filterYear) return false
-    if (filterMonth!==-1 && d.getMonth()!==filterMonth) return false
+    const { year: py, month: pmo } = parseDate(m.played_at)
+    if (py!==filterYear) return false
+    if (filterMonth!==-1 && pmo!==filterMonth) return false
     return true
   })
   const filteredMatchIds = new Set(filteredMatches.map(m=>m.id))
   const filteredEvents = allEvents.filter(e=>filteredMatchIds.has(e.match_id))
   const filteredMatchPlayers = allMatchPlayers.filter(mp=>filteredMatchIds.has(mp.match_id))
 
-  const availableYears = [...new Set(allMatches.map(m=>new Date(m.played_at+'T12:00:00').getFullYear()))].sort((a,b)=>b-a)
+  const availableYears = [...new Set(allMatches.map(m=>parseDate(m.played_at).year))].sort((a,b)=>b-a)
   if (!availableYears.includes(now.getFullYear())) availableYears.unshift(now.getFullYear())
 
   const sp = players.find(p=>p.id===selectedPlayer)
@@ -90,7 +96,7 @@ export default function PersonalDashboard() {
   // By day of month
   const byDay = {}
   spMatches.forEach(m=>{
-    const day = new Date(m.played_at+'T12:00:00').getDate()
+    const day = parseDate(m.played_at).day
     const pts = spEvents.filter(e=>e.match_id===m.id).reduce((s,e)=>s+e.points,0)
     if (!byDay[day]) byDay[day]={ pts:0, count:0 }
     byDay[day].pts+=pts; byDay[day].count++
@@ -111,7 +117,7 @@ export default function PersonalDashboard() {
 
   // Trend over time (per match)
   const trendData = spMatches.slice(-15).map(m => ({
-    date: new Date(m.played_at+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}),
+    date: String(parseDate(m.played_at).day).padStart(2,'0')+'/'+String(parseDate(m.played_at).month+1).padStart(2,'0'),
     porotos: spEvents.filter(e=>e.match_id===m.id).reduce((s,e)=>s+e.points,0),
     resultado: m.result==='victoria'?1:m.result==='derrota'?-1:0
   }))

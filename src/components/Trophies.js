@@ -103,8 +103,8 @@ export default function Trophies() {
 
   function computeTrophies() {
     const filteredMatches = matches.filter(m => {
-      const d = new Date(m.played_at+'T12:00:00')
-      return d.getFullYear()===year && d.getMonth()===month
+      const dateStr = String(m.played_at).slice(0, 10); const [py, pmo] = dateStr.split("-").map(Number)
+      return py === year && (pmo - 1) === month
     })
     const filteredMatchIds = new Set(filteredMatches.map(m=>m.id))
     const filteredEvents = events.filter(e=>filteredMatchIds.has(e.match_id))
@@ -199,7 +199,7 @@ export default function Trophies() {
     setTrophies(results)
   }
 
-  const availableYears = [...new Set(matches.map(m=>new Date(m.played_at+'T12:00:00').getFullYear()))].sort((a,b)=>b-a)
+  const availableYears = [...new Set(matches.map(m=>parseInt(String(m.played_at).slice(0,4))))].sort((a,b)=>b-a)
   if (!availableYears.includes(now.getFullYear())) availableYears.unshift(now.getFullYear())
 
   if (loading) return <div className="loading">Cargando trofeos...</div>

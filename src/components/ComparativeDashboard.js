@@ -3,6 +3,12 @@ import { supabase } from '../lib/supabase'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Legend, Cell } from 'recharts'
 
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+
+function parseDate(dateStr) {
+  const s = String(dateStr).slice(0, 10)
+  const [y, mo, d] = s.split('-').map(Number)
+  return { year: y, month: mo - 1, day: d }
+}
 const COLORS = ['#ff4655','#22d3a5','#5b8af5','#f5a623','#c084fc','#fb923c']
 
 function getInitials(n) { return n.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2) }
@@ -51,16 +57,16 @@ export default function ComparativeDashboard() {
   }
 
   const filteredMatches = allMatches.filter(m => {
-    const d = new Date(m.played_at+'T12:00:00')
-    if (d.getFullYear()!==filterYear) return false
-    if (filterMonth!==-1 && d.getMonth()!==filterMonth) return false
+    const { year: py, month: pmo } = parseDate(m.played_at)
+    if (py!==filterYear) return false
+    if (filterMonth!==-1 && pmo!==filterMonth) return false
     return true
   })
   const filteredMatchIds = new Set(filteredMatches.map(m=>m.id))
   const filteredEvents = allEvents.filter(e=>filteredMatchIds.has(e.match_id))
   const filteredMatchPlayers = allMatchPlayers.filter(mp=>filteredMatchIds.has(mp.match_id))
 
-  const availableYears = [...new Set(allMatches.map(m=>new Date(m.played_at+'T12:00:00').getFullYear()))].sort((a,b)=>b-a)
+  const availableYears = [...new Set(allMatches.map(m=>parseDate(m.played_at).year))].sort((a,b)=>b-a)
   if (!availableYears.includes(now.getFullYear())) availableYears.unshift(now.getFullYear())
 
   const activePlayers = players.filter(p=>selectedPlayers.includes(p.id))
