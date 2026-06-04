@@ -138,18 +138,17 @@ export default function MatchHistory({ isAdmin = false }) {
   // Group by year-month, then by day inside each month
   const groups = {}
   filtered.forEach((m) => {
-    const { year, month } = parseYearMonth(m.played_at)
-    const day = String(m.played_at).slice(8, 10).replace(/^0/, '')
+    // Robust date parsing — handles YYYY-MM-DD and full timestamps
+    const datePart = String(m.played_at).slice(0, 10)
+    const [year, month, day] = datePart.split('-').map(Number)
+    if (!year || !month || !day) return
     const monthKey = `${year}-${String(month).padStart(2,'0')}`
     const dayKey = `${monthKey}-${String(day).padStart(2,'0')}`
     if (!groups[monthKey]) groups[monthKey] = { year, month, label: `${MONTHS_ES[month-1]} ${year}`, days: {} }
     if (!groups[monthKey].days[dayKey]) {
-      const weekday = (() => {
-        const [y, mo, d] = String(m.played_at).slice(0,10).split('-').map(Number)
-        const date = new Date(y, mo-1, d)
-        return ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][date.getDay()]
-      })()
-      groups[monthKey].days[dayKey] = { day: parseInt(day), month, year, weekday, matches: [] }
+      const date = new Date(year, month - 1, day)
+      const weekday = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][date.getDay()]
+      groups[monthKey].days[dayKey] = { day, month, year, weekday, matches: [] }
     }
     groups[monthKey].days[dayKey].matches.push({ ...m, _originalIndex: matches.indexOf(m) })
   })
