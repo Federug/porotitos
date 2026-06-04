@@ -8,7 +8,8 @@
     "react-scripts": "5.0.1",
     "@supabase/supabase-js": "^2.39.0",
     "recharts": "^2.10.0",
-    "lucide-react": "^0.303.0"
+    "lucide-react": "^0.303.0",
+    "xlsx": "^0.18.5"
   },
   "scripts": {
     "start": "react-scripts start",
@@ -16,7 +17,15 @@
     "test": "react-scripts test"
   },
   "browserslist": {
-    "production": [">0.2%", "not dead", "not op_mini all"],
-    "development": ["last 1 chrome version", "last 1 firefox version", "last 1 safari version"]
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
   }
 }
