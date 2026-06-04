@@ -135,13 +135,23 @@ export default function MatchHistory({ isAdmin = false }) {
     return true
   })
 
-  // Group by year-month
+  // Group by year-month, then by day inside each month
   const groups = {}
-  filtered.forEach((m, idx) => {
+  filtered.forEach((m) => {
     const { year, month } = parseYearMonth(m.played_at)
-    const key = `${year}-${String(month).padStart(2,'0')}`
-    if (!groups[key]) groups[key] = { year, month, label: `${MONTHS_ES[month-1]} ${year}`, matches: [] }
-    groups[key].matches.push({ ...m, _originalIndex: matches.indexOf(m) })
+    const day = String(m.played_at).slice(8, 10).replace(/^0/, '')
+    const monthKey = `${year}-${String(month).padStart(2,'0')}`
+    const dayKey = `${monthKey}-${String(day).padStart(2,'0')}`
+    if (!groups[monthKey]) groups[monthKey] = { year, month, label: `${MONTHS_ES[month-1]} ${year}`, days: {} }
+    if (!groups[monthKey].days[dayKey]) {
+      const weekday = (() => {
+        const [y, mo, d] = String(m.played_at).slice(0,10).split('-').map(Number)
+        const date = new Date(y, mo-1, d)
+        return ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][date.getDay()]
+      })()
+      groups[monthKey].days[dayKey] = { day: parseInt(day), month, year, weekday, matches: [] }
+    }
+    groups[monthKey].days[dayKey].matches.push({ ...m, _originalIndex: matches.indexOf(m) })
   })
   const sortedGroups = Object.entries(groups).sort((a,b) => b[0].localeCompare(a[0]))
 
@@ -236,10 +246,12 @@ export default function MatchHistory({ isAdmin = false }) {
       ) : (
         <div style={{ display:'flex', flexDirection:'column', gap:24 }}>
           {sortedGroups.map(([groupKey, group]) => {
-            const isCollapsed = collapsedMonths[groupKey]
-            const wins = group.matches.filter(m=>m.result==='victoria').length
-            const losses = group.matches.filter(m=>m.result==='derrota').length
-            const wr = Math.round(wins/group.matches.length*100)
+            const isMonthCollapsed = collapsedMonths[groupKey]
+            const allMonthMatches = Object.values(group.days).flatMap(d => d.matches)
+            const wins = allMonthMatches.filter(m=>m.result==='victoria').length
+            const losses = allMonthMatches.filter(m=>m.result==='derrota').length
+            const wr = allMonthMatches.length > 0 ? Math.round(wins/allMonthMatches.length*100) : 0
+            const sortedDays = Object.entries(group.days).sort((a,b) => b[0].localeCompare(a[0]))
 
             return (
               <div key={groupKey}>
@@ -248,7 +260,7 @@ export default function MatchHistory({ isAdmin = false }) {
                   onClick={() => toggleMonthCollapse(groupKey)}
                   style={{
                     display:'flex', alignItems:'center', gap:12,
-                    padding:'10px 16px', marginBottom: isCollapsed ? 0 : 10,
+                    padding:'10px 16px', marginBottom: isMonthCollapsed ? 0 : 12,
                     background:'var(--bg-surface)', borderRadius:8,
                     border:'1px solid var(--border-bright)', cursor:'pointer',
                     userSelect:'none'
@@ -257,16 +269,49 @@ export default function MatchHistory({ isAdmin = false }) {
                   <span style={{ fontFamily:'Rajdhani,sans-serif', fontWeight:700, fontSize:17, color:'var(--text-primary)', flex:1 }}>
                     📅 {group.label}
                   </span>
-                  <span style={{ fontSize:12, color:'var(--text-muted)' }}>{group.matches.length} partidas</span>
+                  <span style={{ fontSize:12, color:'var(--text-muted)' }}>{allMonthMatches.length} partidas</span>
                   <span style={{ fontSize:12, color:'var(--accent-green)' }}>{wins}V</span>
                   <span style={{ fontSize:12, color:'var(--accent)' }}>{losses}D</span>
                   <span style={{ fontSize:12, color: wr>=50?'var(--accent-green)':'var(--accent)', fontWeight:600, minWidth:42 }}>{wr}%</span>
-                  <span style={{ color:'var(--text-muted)', fontSize:12, marginLeft:4 }}>{isCollapsed ? '▼' : '▲'}</span>
+                  <span style={{ color:'var(--text-muted)', fontSize:12, marginLeft:4 }}>{isMonthCollapsed ? '▼' : '▲'}</span>
                 </div>
 
-                {!isCollapsed && (
-                  <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                    {group.matches.map((m) => {
+                {!isMonthCollapsed && (
+                  <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                    {sortedDays.map(([dayKey, dayGroup]) => {
+                      const isDayCollapsed = collapsedMonths[dayKey]
+                      const dayWins = dayGroup.matches.filter(m=>m.result==='victoria').length
+                      const dayLosses = dayGroup.matches.filter(m=>m.result==='derrota').length
+                      const dayWR = dayGroup.matches.length > 0 ? Math.round(dayWins/dayGroup.matches.length*100) : 0
+
+                      return (
+                        <div key={dayKey} style={{ paddingLeft: 12, borderLeft: '2px solid var(--border)' }}>
+                          {/* Day subheader */}
+                          <div
+                            onClick={() => toggleMonthCollapse(dayKey)}
+                            style={{
+                              display:'flex', alignItems:'center', gap:10,
+                              padding:'7px 12px', marginBottom: isDayCollapsed ? 0 : 8,
+                              background:'var(--bg-card)', borderRadius:6,
+                              border:'1px solid var(--border)', cursor:'pointer',
+                              userSelect:'none'
+                            }}
+                          >
+                            <span style={{ fontSize:13, fontWeight:600, color:'var(--accent-blue)', minWidth:28 }}>
+                              {String(dayGroup.day).padStart(2,'0')}
+                            </span>
+                            <span style={{ fontSize:12, color:'var(--text-muted)' }}>{dayGroup.weekday}</span>
+                            <span style={{ flex:1 }} />
+                            <span style={{ fontSize:11, color:'var(--text-muted)' }}>{dayGroup.matches.length} {dayGroup.matches.length===1?'partida':'partidas'}</span>
+                            <span style={{ fontSize:11, color:'var(--accent-green)' }}>{dayWins}V</span>
+                            <span style={{ fontSize:11, color:'var(--accent)' }}>{dayLosses}D</span>
+                            <span style={{ fontSize:11, color: dayWR>=50?'var(--accent-green)':'var(--accent)', fontWeight:600 }}>{dayWR}%</span>
+                            <span style={{ color:'var(--text-muted)', fontSize:11, marginLeft:4 }}>{isDayCollapsed ? '▼' : '▲'}</span>
+                          </div>
+
+                          {!isDayCollapsed && (
+                            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                              {dayGroup.matches.map((m) => {
                       const index = m._originalIndex
                       const details = matchDetails[m.id] || []
                       const participants = matchParticipants[m.id] || []
@@ -358,13 +403,19 @@ export default function MatchHistory({ isAdmin = false }) {
                         </div>
                       )
                     })}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    )
+  }
 }
