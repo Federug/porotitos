@@ -83,6 +83,15 @@ export default function NewMatch({ onSaved, editMatch = null }) {
     if (!map) return setError('Seleccioná un mapa')
     if (!result) return setError('Ingresá el score o seleccioná el resultado')
     if (selectedPlayers.length === 0) return setError('Seleccioná al menos un jugador')
+
+    // Validate MVP and Último are required
+    const mvpCat = categories.find(c => c.name === 'MVP')
+    const ultimoCat = categories.find(c => c.name === 'Último')
+    const hasMVP = mvpCat && events.some(e => e.categoryId === mvpCat.id)
+    const hasUltimo = ultimoCat && events.some(e => e.categoryId === ultimoCat.id)
+    if (!hasMVP && mvpCat) return setError('⚠️ Obligatorio: asigná al menos 1 MVP antes de guardar')
+    if (!hasUltimo && ultimoCat) return setError('⚠️ Obligatorio: asigná al menos 1 Último antes de guardar')
+
     setSaving(true)
     setError('')
 
@@ -106,8 +115,15 @@ export default function NewMatch({ onSaved, editMatch = null }) {
         supabase.from('match_players').delete().eq('match_id', matchId)
       ])
     } else {
+      // Push all existing matches down by 1 to make room at top
+      const { data: existingMatches } = await supabase.from('matches').select('id, sort_order').order('sort_order', { ascending: true })
+      if (existingMatches && existingMatches.length > 0) {
+        await Promise.all(existingMatches.map((m, i) =>
+          supabase.from('matches').update({ sort_order: i + 1 }).eq('id', m.id)
+        ))
+      }
       const { data: match, error: matchError } = await supabase
-        .from('matches').insert(matchData).select().single()
+        .from('matches').insert({ ...matchData, sort_order: 0 }).select().single()
       if (matchError) { setSaving(false); return setError('Error: ' + matchError.message) }
       matchId = match.id
     }
@@ -244,6 +260,25 @@ export default function NewMatch({ onSaved, editMatch = null }) {
               <h3 style={{ marginBottom: 0 }}>Asignar porotitos</h3>
               <button className="btn btn-sm" onClick={addEvent} disabled={allPlayers.length === 0 || categories.length === 0}>+ Agregar</button>
             </div>
+
+            {/* Required indicators */}
+            {categories.length > 0 && (() => {
+              const mvpCat = categories.find(c => c.name === 'MVP')
+              const ultimoCat = categories.find(c => c.name === 'Último')
+              const hasMVP = mvpCat && events.some(e => e.categoryId === mvpCat.id)
+              const hasUltimo = ultimoCat && events.some(e => e.categoryId === ultimoCat.id)
+              return (
+                <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500, background: hasMVP ? 'rgba(34,211,165,0.12)' : 'rgba(255,70,85,0.1)', border: `1px solid ${hasMVP ? 'rgba(34,211,165,0.3)' : 'rgba(255,70,85,0.3)'}`, color: hasMVP ? 'var(--accent-green)' : 'var(--accent)' }}>
+                    {hasMVP ? '✓' : '!'} MVP
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500, background: hasUltimo ? 'rgba(34,211,165,0.12)' : 'rgba(255,70,85,0.1)', border: `1px solid ${hasUltimo ? 'rgba(34,211,165,0.3)' : 'rgba(255,70,85,0.3)'}`, color: hasUltimo ? 'var(--accent-green)' : 'var(--accent)' }}>
+                    {hasUltimo ? '✓' : '!'} Último
+                  </div>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', alignSelf: 'center' }}>obligatorios</span>
+                </div>
+              )
+            })()}
 
             {events.length === 0 ? (
               <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '16px 0' }}>Agregá eventos para asignar porotos</p>
