@@ -78,6 +78,16 @@ function AppInner() {
         </nav>
 
         {/* User info at bottom */}
+        {/* Build info */}
+        {process.env.REACT_APP_BUILD_TIME && (
+          <div style={{ padding:'8px 12px', borderTop:'1px solid var(--border)', fontSize:10, color:'var(--text-muted)', textAlign:'center' }}>
+            {(() => {
+              const d = new Date(process.env.REACT_APP_BUILD_TIME)
+              return `Actualizado: ${d.toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric' })} ${d.toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' })}`
+            })()}
+          </div>
+        )}
+
         <div style={{ padding:'12px', borderTop:'1px solid var(--border)', marginTop:'auto' }}>
           <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:8 }}>
             {player?.photo_url
