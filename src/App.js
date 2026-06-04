@@ -9,6 +9,7 @@ import Players from './components/Players'
 import Categories from './components/Categories'
 import Trophies from './components/Trophies'
 import AdminUsers from './components/AdminUsers'
+import ImportExport, { downloadBackup } from './components/ImportExport'
 import Login from './components/Login'
 import ChangePassword from './components/ChangePassword'
 import Setup from './components/Setup'
@@ -52,6 +53,7 @@ function AppInner() {
     { id:'trophies',    label:'Trofeos',           icon:'🏆' },
     { id:'players',     label:'Jugadores',         icon:'👥' },
     { id:'categories',  label:'Categorías',        icon:'🏷️' },
+    { id:'import-export', label:'Importar / Exportar', icon:'📥' },
     ...(isAdmin ? [{ id:'admin-users', label:'Usuarios', icon:'🔐' }] : []),
   ]
 
@@ -93,21 +95,9 @@ function AppInner() {
               </div>
             </div>
           </div>
-          <div style={{ display:'flex', gap:6 }}>
-            <button
-              className="btn btn-sm"
-              style={{ flex:1, fontSize:11, padding:'5px 8px' }}
-              onClick={() => setShowChangePassword(true)}
-            >
-              🔑 Contraseña
-            </button>
-            <button
-              className="btn btn-sm btn-danger"
-              style={{ fontSize:11, padding:'5px 8px' }}
-              onClick={() => supabase.auth.signOut()}
-            >
-              Salir
-            </button>
+          <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+            <button className="btn btn-sm" style={{ flex:1, fontSize:11, padding:'5px 8px' }} onClick={() => setShowChangePassword(true)}>🔑 Contraseña</button>
+            <button className="btn btn-sm btn-danger" style={{ fontSize:11, padding:'5px 8px' }} onClick={() => supabase.auth.signOut()}>Salir</button>
           </div>
         </div>
       </aside>
@@ -122,6 +112,7 @@ function AppInner() {
         {page==='players'      && <Players key={refreshKey} onUpdate={refresh} isAdmin={isAdmin} />}
         {page==='categories'   && <Categories key={refreshKey} />}
         {page==='admin-users'  && isAdmin && <AdminUsers key={refreshKey} />}
+        {page==='import-export' && <ImportExport key={refreshKey} />}
       </main>
 
       {showChangePassword && <ChangePassword onClose={() => setShowChangePassword(false)} />}
