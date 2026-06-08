@@ -209,11 +209,9 @@ export default function Trophies() {
           const count = filteredEvents.filter(e=>e.player_id===p.id&&e.category_id===cat.id).length
           if (count===0) return null
           const mc = getMatchCount(p.id)
-          const ratio = mc>0 ? count/mc : 0
-          if (def.relative) {
-            return { player:p, value:ratio, count, display:`${count}x (${(ratio*100).toFixed(0)}% partidas)` }
-          }
-          return { player:p, value:count, display:`${count} veces` }
+          if (mc===0) return null
+          const ratio = count/mc
+          return { player:p, value:ratio, count, mc, display:`${count}x en ${mc}p (${ratio.toFixed(2)}/p)` }
         }).filter(Boolean).sort((a,b) => b.value - a.value)
       }
 
