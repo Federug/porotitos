@@ -16,15 +16,15 @@ import Toast from './components/Toast'
 import Setup from './components/Setup'
 import { supabase } from './lib/supabase'
 import './App.css'
-
+ 
 const VALORANT_MAPS = [
   'Abyss', 'Ascent', 'Bind', 'Breeze', 'Fracture',
   'Haven', 'Icebox', 'Lotus', 'Pearl', 'Split', 'Sunset'
 ]
 export { VALORANT_MAPS }
-
+ 
 function getInitials(n) { return n.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2) }
-
+ 
 function AppInner() {
   const { user, player, isAdmin, loading } = useAuth()
   const [page, setPage] = useState(() => {
@@ -35,9 +35,14 @@ function AppInner() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [showChangePassword, setShowChangePassword] = useState(false)
   const [toast, setToast] = useState(null)
-
+ 
   function showToast(message, type='success') { setToast({ message, type }) }
-
+ 
+  // Persist page in URL hash — must be before any conditional returns (Rules of Hooks)
+  useEffect(() => {
+    window.location.hash = page
+  }, [page])
+ 
   const isConfigured = !!(process.env.REACT_APP_SUPABASE_URL && process.env.REACT_APP_SUPABASE_ANON_KEY)
   if (!isConfigured) return <Setup />
   if (loading) return (
@@ -49,14 +54,9 @@ function AppInner() {
     </div>
   )
   if (!user) return <Login />
-
+ 
   const refresh = () => setRefreshKey(k => k + 1)
-
-  // Persist page in URL hash
-  useEffect(() => {
-    window.location.hash = page
-  }, [page])
-
+ 
   const nav = [
     { id:'dashboard',   label:'Dashboard',        icon:'📊' },
     { id:'personal',    label:'Stats Personales',  icon:'👤' },
@@ -69,7 +69,7 @@ function AppInner() {
     { id:'import-export', label:'Importar / Exportar', icon:'📥' },
     ...(isAdmin ? [{ id:'admin-users', label:'Usuarios', icon:'🔐' }] : []),
   ]
-
+ 
   return (
     <div className="app">
       <aside className="sidebar">
@@ -80,7 +80,7 @@ function AppInner() {
             <p className="logo-sub">Valorant Tracker</p>
           </div>
         </div>
-
+ 
         <nav className="sidebar-nav">
           {nav.map(item => (
             <button key={item.id} className={`nav-item ${page===item.id?'active':''}`} onClick={() => setPage(item.id)}>
@@ -89,7 +89,7 @@ function AppInner() {
             </button>
           ))}
         </nav>
-
+ 
         {/* User info at bottom */}
         {/* Build info */}
         {(process.env.REACT_APP_BUILD_TIME || process.env.REACT_APP_DEPLOY_TIME) && (
@@ -103,7 +103,7 @@ function AppInner() {
             })()}
           </div>
         )}
-
+ 
         <div style={{ padding:'12px', borderTop:'1px solid var(--border)', marginTop:'auto' }}>
           <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:8 }}>
             {player?.photo_url
@@ -127,7 +127,7 @@ function AppInner() {
           </div>
         </div>
       </aside>
-
+ 
       <main className="main-content">
         {page==='dashboard'    && <Dashboard key={refreshKey} />}
         {page==='personal'     && <PersonalDashboard key={refreshKey} />}
@@ -140,13 +140,13 @@ function AppInner() {
         {page==='admin-users'  && isAdmin && <AdminUsers key={refreshKey} />}
         {page==='import-export' && <ImportExport key={refreshKey} />}
       </main>
-
+ 
       {showChangePassword && <ChangePassword onClose={() => setShowChangePassword(false)} />}
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   )
 }
-
+ 
 export default function App() {
   return (
     <AuthProvider>
