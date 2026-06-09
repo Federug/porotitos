@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Dashboard from './components/Dashboard'
 import PersonalDashboard from './components/PersonalDashboard'
@@ -12,6 +12,7 @@ import AdminUsers from './components/AdminUsers'
 import ImportExport, { downloadBackup } from './components/ImportExport'
 import Login from './components/Login'
 import ChangePassword from './components/ChangePassword'
+import Toast from './components/Toast'
 import Setup from './components/Setup'
 import { supabase } from './lib/supabase'
 import './App.css'
@@ -26,9 +27,16 @@ function getInitials(n) { return n.split(' ').map(w=>w[0]).join('').toUpperCase(
 
 function AppInner() {
   const { user, player, isAdmin, loading } = useAuth()
-  const [page, setPage] = useState('dashboard')
+  const [page, setPage] = useState(() => {
+    const hash = window.location.hash.replace('#', '')
+    const validPages = ['dashboard','personal','comparative','new-match','history','trophies','players','categories','import-export','admin-users']
+    return validPages.includes(hash) ? hash : 'dashboard'
+  })
   const [refreshKey, setRefreshKey] = useState(0)
   const [showChangePassword, setShowChangePassword] = useState(false)
+  const [toast, setToast] = useState(null)
+
+  function showToast(message, type='success') { setToast({ message, type }) }
 
   const isConfigured = !!(process.env.REACT_APP_SUPABASE_URL && process.env.REACT_APP_SUPABASE_ANON_KEY)
   if (!isConfigured) return <Setup />
@@ -43,6 +51,11 @@ function AppInner() {
   if (!user) return <Login />
 
   const refresh = () => setRefreshKey(k => k + 1)
+
+  // Persist page in URL hash
+  useEffect(() => {
+    window.location.hash = page
+  }, [page])
 
   const nav = [
     { id:'dashboard',   label:'Dashboard',        icon:'📊' },
@@ -79,11 +92,14 @@ function AppInner() {
 
         {/* User info at bottom */}
         {/* Build info */}
-        {process.env.REACT_APP_BUILD_TIME && (
-          <div style={{ padding:'8px 12px', borderTop:'1px solid var(--border)', fontSize:10, color:'var(--text-muted)', textAlign:'center' }}>
+        {(process.env.REACT_APP_BUILD_TIME || process.env.REACT_APP_DEPLOY_TIME) && (
+          <div style={{ padding:'8px 12px', borderTop:'1px solid var(--border)', fontSize:10, color:'var(--text-muted)', textAlign:'center', lineHeight:1.4 }}>
             {(() => {
-              const d = new Date(process.env.REACT_APP_BUILD_TIME)
-              return `Actualizado: ${d.toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric' })} ${d.toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' })}`
+              const raw = process.env.REACT_APP_BUILD_TIME || process.env.REACT_APP_DEPLOY_TIME
+              try {
+                const d = new Date(raw)
+                return '🔄 ' + d.toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric' }) + ' ' + d.toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' })
+              } catch(e) { return raw }
             })()}
           </div>
         )}
@@ -116,7 +132,7 @@ function AppInner() {
         {page==='dashboard'    && <Dashboard key={refreshKey} />}
         {page==='personal'     && <PersonalDashboard key={refreshKey} />}
         {page==='comparative'  && <ComparativeDashboard key={refreshKey} />}
-        {page==='new-match'    && <NewMatch onSaved={() => { refresh(); setPage('dashboard') }} />}
+        {page==='new-match'    && <NewMatch onSaved={() => { refresh(); setPage('history'); showToast('✓ Partida guardada correctamente') }} />}
         {page==='history'      && <MatchHistory key={refreshKey} isAdmin={isAdmin} />}
         {page==='trophies'     && <Trophies key={refreshKey} />}
         {page==='players'      && <Players key={refreshKey} onUpdate={refresh} isAdmin={isAdmin} />}
@@ -126,6 +142,7 @@ function AppInner() {
       </main>
 
       {showChangePassword && <ChangePassword onClose={() => setShowChangePassword(false)} />}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   )
 }
