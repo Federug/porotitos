@@ -254,7 +254,7 @@ export default function MatchHistory({ isAdmin = false }) {
                 {!isMonthCollapsed && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {sortedDays.map(([dayKey, dayGroup]) => {
-                      const isDayCollapsed = collapsedSections[dayKey]
+                      const isDayCollapsed = dayKey in collapsedSections ? collapsedSections[dayKey] : true  // days collapsed by default
                       const dWins = dayGroup.matches.filter(m => m.result === 'victoria').length
                       const dLosses = dayGroup.matches.filter(m => m.result === 'derrota').length
                       const dWR = dayGroup.matches.length > 0 ? Math.round(dWins / dayGroup.matches.length * 100) : 0

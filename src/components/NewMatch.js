@@ -13,7 +13,7 @@ export default function NewMatch({ onSaved, editMatch = null }) {
   const [playedAt, setPlayedAt] = useState(
     editMatch?.played_at
       ? new Date(editMatch.played_at).toISOString().slice(0, 10)
-      : new Date().toISOString().slice(0, 10)
+      : new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10)
   )
   const [allPlayers, setAllPlayers] = useState([])
   const [selectedPlayers, setSelectedPlayers] = useState([])
@@ -158,9 +158,22 @@ export default function NewMatch({ onSaved, editMatch = null }) {
 
   const resultColor = result === 'victoria' ? 'var(--accent-green)' : result === 'derrota' ? 'var(--accent)' : result === 'empate' ? 'var(--accent-blue)' : 'var(--text-muted)'
 
+  const [quickMode, setQuickMode] = useState(false)
+
   return (
     <div>
-      <h2>{isEditing ? '✏️ Editar Partida' : '🎮 Registrar Partida'}</h2>
+      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:20}}>
+        <h2 style={{marginBottom:0}}>{isEditing ? '✏️ Editar Partida' : '🎮 Registrar Partida'}</h2>
+        {!isEditing && (
+          <button
+            className="btn btn-sm"
+            style={{marginLeft:'auto',borderColor:quickMode?'var(--accent-amber)':'var(--border)',color:quickMode?'var(--accent-amber)':'var(--text-secondary)',background:quickMode?'rgba(245,166,35,0.1)':'transparent'}}
+            onClick={() => setQuickMode(q=>!q)}
+          >
+            ⚡ {quickMode ? 'Modo completo' : 'Carga rápida'}
+          </button>
+        )}
+      </div>
 
       {allPlayers.length === 0 && (
         <div style={{ padding: 16, background: 'var(--accent-dim)', borderRadius: 8, border: '1px solid rgba(255,70,85,0.3)', marginBottom: 16, fontSize: 13, color: 'var(--accent)' }}>
@@ -168,7 +181,7 @@ export default function NewMatch({ onSaved, editMatch = null }) {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+      <div style={{ display: quickMode ? 'block' : 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
         <div>
           <div className="card" style={{ marginBottom: 16 }}>
             <h3>Información de la partida</h3>
@@ -215,10 +228,12 @@ export default function NewMatch({ onSaved, editMatch = null }) {
               </div>
             </div>
 
-            <div className="form-group">
-              <label>Notas (opcional)</label>
-              <textarea placeholder="Comentarios..." value={notes} onChange={e => setNotes(e.target.value)} rows={2} style={{ resize: 'vertical' }} />
-            </div>
+            {!quickMode && (
+              <div className="form-group">
+                <label>Notas (opcional)</label>
+                <textarea placeholder="Comentarios..." value={notes} onChange={e => setNotes(e.target.value)} rows={2} style={{ resize: 'vertical' }} />
+              </div>
+            )}
           </div>
 
           <div className="card">

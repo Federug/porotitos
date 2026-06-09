@@ -63,6 +63,19 @@ export default function Dashboard() {
   const total = filteredMatches.length
   const winRate = total>0 ? Math.round((wins/total)*100) : 0
 
+  // Streak calculation (uses ALL matches, not filtered, ordered by sort_order)
+  const recentMatches = [...allMatches].sort((a,b) => a.sort_order - b.sort_order || String(a.played_at).localeCompare(String(b.played_at)))
+  let streak = 0
+  let streakType = ''
+  if (recentMatches.length > 0) {
+    const last = recentMatches[recentMatches.length - 1].result
+    streakType = last
+    for (let i = recentMatches.length - 1; i >= 0; i--) {
+      if (recentMatches[i].result === last) streak++
+      else break
+    }
+  }
+
   // Player table
   const playerTable = players.map(p => {
     const pEvents = filteredEvents.filter(e=>e.player_id===p.id)
@@ -141,6 +154,15 @@ export default function Dashboard() {
         <div className="stat-card"><div className="stat-label">Victorias</div><div className="stat-value green">{wins}</div></div>
         <div className="stat-card"><div className="stat-label">Derrotas</div><div className="stat-value red">{losses}</div></div>
         <div className="stat-card"><div className="stat-label">Win Rate</div><div className={`stat-value ${winRate>=50?'green':'red'}`}>{winRate}%</div></div>
+        {streak>0 && (
+          <div className="stat-card" style={{border:`1px solid ${streakType==='victoria'?'rgba(34,211,165,0.3)':'rgba(255,70,85,0.3)'}`,background:streakType==='victoria'?'rgba(34,211,165,0.05)':'rgba(255,70,85,0.05)'}}>
+            <div className="stat-label">Racha actual</div>
+            <div className="stat-value" style={{color:streakType==='victoria'?'var(--accent-green)':'var(--accent)',fontSize:22}}>
+              {streakType==='victoria'?'🟢':'🔴'} {streak}
+            </div>
+            <div style={{fontSize:11,color:'var(--text-muted)',marginTop:2}}>{streakType==='victoria'?'victorias':'derrotas'} seguidas</div>
+          </div>
+        )}
       </div>
 
       {playerTable.length>0 && (
