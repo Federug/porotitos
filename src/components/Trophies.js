@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 
+// html2canvas loaded dynamically
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
 const MEDALS = [
@@ -241,11 +242,42 @@ export default function Trophies() {
 
   const hasData = trophies.some(t=>t.podium.length>0)
 
+  const podiumRef = useRef(null)
+  const [exporting, setExporting] = useState(false)
+
+  async function exportImage() {
+    if (!podiumRef.current) return
+    setExporting(true)
+    try {
+      const html2canvas = (await import('html2canvas')).default
+      const canvas = await html2canvas(podiumRef.current, {
+        backgroundColor: '#0d0f14',
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+      })
+      const link = document.createElement('a')
+      link.download = `porotitos_trofeos_${MONTHS[month].toLowerCase()}_${year}.png`
+      link.href = canvas.toDataURL('image/png')
+      link.click()
+    } catch(e) {
+      alert('Error al generar imagen: ' + e.message)
+    }
+    setExporting(false)
+  }
+
   return (
     <div>
       <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:24 }}>
         <h2 style={{ marginBottom:0 }}>🏆 Trofeos Mensuales</h2>
         <span style={{ flex:1 }} />
+        {hasData && (
+          <button className="btn btn-sm" onClick={exportImage} disabled={exporting}
+            style={{ borderColor:'var(--accent-blue)', color:'var(--accent-blue)' }}>
+            {exporting ? '⏳ Generando...' : '📸 Compartir imagen'}
+          </button>
+        )}
         <select value={year} onChange={e=>setYear(parseInt(e.target.value))} style={{ width:100 }}>
           {availableYears.map(y=><option key={y} value={y}>{y}</option>)}
         </select>
@@ -254,15 +286,18 @@ export default function Trophies() {
         </select>
       </div>
 
-      <div style={{ marginBottom:16, padding:'10px 16px', background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:8, fontSize:13, color:'var(--text-secondary)' }}>
-        Trofeos de <strong style={{ color:'var(--text-primary)' }}>{MONTHS[month]} {year}</strong> — Podio con 🥇 oro, 🥈 plata y 🥉 bronce por categoría
-      </div>
-
       {!hasData ? (
         <div className="empty"><div className="empty-icon">🏆</div><p>No hay partidas en {MONTHS[month]} {year}.</p></div>
       ) : (
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(300px, 1fr))', gap:18 }}>
-          {trophies.map(t => <TrophyCard key={t.id} trophy={t} />)}
+        <div ref={podiumRef} style={{ padding:24, background:'#0d0f14', borderRadius:12 }}>
+          {/* Header for export */}
+          <div style={{ textAlign:'center', marginBottom:20 }}>
+            <div style={{ fontFamily:'Rajdhani,sans-serif', fontSize:28, fontWeight:700, color:'#ff4655', letterSpacing:3 }}>🫘 POROTITOS</div>
+            <div style={{ fontSize:14, color:'#8892a8', marginTop:4 }}>Trofeos de {MONTHS[month]} {year}</div>
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(300px, 1fr))', gap:18 }}>
+            {trophies.map(t => <TrophyCard key={t.id} trophy={t} />)}
+          </div>
         </div>
       )}
     </div>
