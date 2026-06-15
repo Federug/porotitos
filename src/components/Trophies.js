@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
-
+ 
 // html2canvas loaded dynamically
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
-
+ 
 const MEDALS = [
   { label:'🥇', color:'#f5a623', shadow:'rgba(245,166,35,0.4)', rank:'1° Puesto' },
   { label:'🥈', color:'#adb5c8', shadow:'rgba(173,181,200,0.4)', rank:'2° Puesto' },
   { label:'🥉', color:'#cd7f32', shadow:'rgba(205,127,50,0.4)', rank:'3° Puesto' },
 ]
-
+ 
 const TROPHY_DEFS = [
   { id:'most_clutch',     icon:'⚡', label:'Clutch Master',    desc:'Más clutches realizados',              color:'#f5a623', categoryName:'Clutch',    higherIsBetter:false },
   { id:'best_ppp',        icon:'🫘', label:'El más limpio',    desc:'Mejor poroto/partida del mes',          color:'#22d3a5', special:'best_ppp' },
@@ -21,22 +21,22 @@ const TROPHY_DEFS = [
   { id:'worst_match',     icon:'💥', label:'Desastre total',   desc:'Mayor porotos positivos en una partida',color:'#ff4655', special:'worst_single_match' },
   { id:'most_matches',    icon:'🎮', label:'El más activo',    desc:'Más partidas jugadas en el mes',        color:'#fb923c', special:'most_matches' },
 ]
-
+ 
 function getInitials(name) { return name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2) }
-
+ 
 function PlayerAvatar({ player, size=26 }) {
   if (player.photo_url) return <img src={player.photo_url} alt="" style={{ width:size, height:size, borderRadius:'50%', objectFit:'cover', border:`2px solid ${player.avatar_color}55`, flexShrink:0 }} />
   return <div className="player-avatar" style={{ width:size, height:size, fontSize:size*0.38, background:player.avatar_color+'22', color:player.avatar_color, border:`1px solid ${player.avatar_color}44`, flexShrink:0 }}>{getInitials(player.name)}</div>
 }
-
+ 
 function PlayerChip({ entry, medal }) {
   const m = MEDALS[medal]
   const tied = entry?.tiedGroup?.length > 1
   if (!entry?.player) return <div style={{ fontSize:12, color:'var(--text-muted)', padding:'8px 0', display:'flex', alignItems:'center', gap:6 }}><span style={{ fontSize:16 }}>{m.label}</span> Sin datos</div>
-
+ 
   // If tied: show all players in the group side by side
   const players = tied ? entry.tiedGroup.map(e => e.player) : [entry.player]
-
+ 
   return (
     <div style={{ display:'flex', alignItems:'center', gap:8, padding:'9px 12px', borderRadius:8, background: medal===0?m.color+'18':'var(--bg-surface)', border:`1px solid ${medal===0?m.color+'44':'var(--border)'}` }}>
       <span style={{ fontSize:20, lineHeight:1, flexShrink:0 }}>{m.label}</span>
@@ -55,7 +55,7 @@ function PlayerChip({ entry, medal }) {
     </div>
   )
 }
-
+ 
 function TrophyCard({ trophy }) {
   const hasData = trophy.podium.length > 0
   // Build display rows: deduplicate tied entries to show once per rank
@@ -69,7 +69,7 @@ function TrophyCard({ trophy }) {
       lastValue = entry.value
     }
   })
-
+ 
   return (
     <div className="card" style={{
       border:`1px solid ${hasData?trophy.color+'44':'var(--border)'}`,
@@ -91,7 +91,7 @@ function TrophyCard({ trophy }) {
           <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>{trophy.desc}</div>
         </div>
       </div>
-
+ 
       {/* Podium */}
       <div style={{ display:'flex', flexDirection:'column', gap:7 }}>
         {!hasData
@@ -102,7 +102,7 @@ function TrophyCard({ trophy }) {
     </div>
   )
 }
-
+ 
 export default function Trophies() {
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
@@ -114,10 +114,13 @@ export default function Trophies() {
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
   const [trophies, setTrophies] = useState([])
-
+ 
+  const podiumRef = useRef(null)
+  const [exporting, setExporting] = useState(false)
+ 
   useEffect(() => { loadAll() }, [])
   useEffect(() => { if (!loading) computeTrophies() }, [year, month, loading, players, matches, events, matchPlayers, categories])
-
+ 
   async function loadAll() {
     const [{ data:p },{ data:m },{ data:e },{ data:c },{ data:mp }] = await Promise.all([
       supabase.from('players').select('*'),
@@ -130,7 +133,7 @@ export default function Trophies() {
     setCategories(c||[]); setMatchPlayers(mp||[])
     setLoading(false)
   }
-
+ 
   function computeTrophies() {
     const filteredMatches = matches.filter(m => {
       const dateStr = String(m.played_at).slice(0, 10); const [py, pmo] = dateStr.split("-").map(Number)
@@ -139,33 +142,33 @@ export default function Trophies() {
     const filteredMatchIds = new Set(filteredMatches.map(m=>m.id))
     const filteredEvents = events.filter(e=>filteredMatchIds.has(e.match_id))
     const filteredMatchPlayers = matchPlayers.filter(mp=>filteredMatchIds.has(mp.match_id))
-
+ 
     function getMatchCount(pid) {
       return new Set(filteredMatchPlayers.filter(mp=>mp.player_id===pid).map(mp=>mp.match_id)).size
     }
-
+ 
     function getPPP(pid) {
       const pEvts = filteredEvents.filter(e=>e.player_id===pid)
       const mc = getMatchCount(pid)
       return mc>0 ? pEvts.reduce((s,e)=>s+e.points,0)/mc : null
     }
-
+ 
     // Build ranked list for a trophy definition
     function buildPodium(def) {
       let ranked = []
-
+ 
       if (def.special === 'best_ppp') {
         ranked = players.map(p => {
           const v = getPPP(p.id)
           return v!==null ? { player:p, value:v, display:v.toFixed(2)+' 🫘/p' } : null
         }).filter(Boolean).sort((a,b)=>a.value-b.value)
-
+ 
       } else if (def.special === 'worst_ppp') {
         ranked = players.map(p => {
           const v = getPPP(p.id)
           return v!==null ? { player:p, value:v, display:'+'+(v>0?v.toFixed(2):'0')+' 🫘/p' } : null
         }).filter(Boolean).sort((a,b)=>b.value-a.value)
-
+ 
       } else if (def.special === 'best_single_match') {
         const perPlayerMatch = []
         filteredMatches.forEach(m => {
@@ -181,7 +184,7 @@ export default function Trophies() {
             bestPerPlayer[r.player.id] = r
         })
         ranked = Object.values(bestPerPlayer).sort((a,b)=>a.value-b.value).filter(r=>r.value<0)
-
+ 
       } else if (def.special === 'worst_single_match') {
         const perPlayerMatch = []
         filteredMatches.forEach(m => {
@@ -196,13 +199,13 @@ export default function Trophies() {
             worstPerPlayer[r.player.id] = r
         })
         ranked = Object.values(worstPerPlayer).sort((a,b)=>b.value-a.value)
-
+ 
       } else if (def.special === 'most_matches') {
         ranked = players.map(p => {
           const mc = getMatchCount(p.id)
           return mc>0 ? { player:p, value:mc, display:`${mc} partidas` } : null
         }).filter(Boolean).sort((a,b)=>b.value-a.value)
-
+ 
       } else if (def.categoryName) {
         const cat = categories.find(c=>c.name===def.categoryName)
         if (!cat) return []
@@ -215,7 +218,7 @@ export default function Trophies() {
           return { player:p, value:ratio, count, mc, display:`${count}x en ${mc}p (${ratio.toFixed(2)}/p)` }
         }).filter(Boolean).sort((a,b) => b.value - a.value)
       }
-
+ 
       if (ranked.length === 0) return []
       const podium = []
       let i = 0
@@ -226,25 +229,22 @@ export default function Trophies() {
       }
       return podium
     }
-
+ 
     const results = TROPHY_DEFS.map(def => ({
       ...def,
       podium: buildPodium(def)
     }))
-
+ 
     setTrophies(results)
   }
-
+ 
   const availableYears = [...new Set(matches.map(m=>parseInt(String(m.played_at).slice(0,4))))].sort((a,b)=>b-a)
   if (!availableYears.includes(now.getFullYear())) availableYears.unshift(now.getFullYear())
-
+ 
   if (loading) return <div className="loading">Cargando trofeos...</div>
-
+ 
   const hasData = trophies.some(t=>t.podium.length>0)
-
-  const podiumRef = useRef(null)
-  const [exporting, setExporting] = useState(false)
-
+ 
   async function exportImage() {
     if (!podiumRef.current) return
     setExporting(true)
@@ -266,7 +266,7 @@ export default function Trophies() {
     }
     setExporting(false)
   }
-
+ 
   return (
     <div>
       <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:24 }}>
@@ -285,7 +285,7 @@ export default function Trophies() {
           {MONTHS.map((m,i)=><option key={i} value={i}>{m}</option>)}
         </select>
       </div>
-
+ 
       {!hasData ? (
         <div className="empty"><div className="empty-icon">🏆</div><p>No hay partidas en {MONTHS[month]} {year}.</p></div>
       ) : (
