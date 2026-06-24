@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Legend, Cell } from 'recharts'
-
+ 
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 const COLORS = ['#ff4655','#22d3a5','#5b8af5','#f5a623','#c084fc','#fb923c']
-
+ 
 function getInitials(n) { return n.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2) }
 function parseDate(s) { const [y,mo,d] = String(s).slice(0,10).split('-').map(Number); return {year:y,month:mo,day:d} }
-
+ 
 const TT = ({ active, payload, label }) => {
   if (!active||!payload?.length) return null
   return (
@@ -17,7 +17,7 @@ const TT = ({ active, payload, label }) => {
     </div>
   )
 }
-
+ 
 export default function Dashboard() {
   const now = new Date()
   const [filterYear, setFilterYear] = useState(now.getFullYear())
@@ -28,9 +28,9 @@ export default function Dashboard() {
   const [allMatchPlayers, setAllMatchPlayers] = useState([])
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
-
+ 
   useEffect(()=>{ loadAll() },[])
-
+ 
   async function loadAll() {
     setLoading(true)
     const [{ data:p },{ data:m },{ data:e },{ data:c },{ data:mp }] = await Promise.all([
@@ -44,7 +44,7 @@ export default function Dashboard() {
     setCategories(c||[]); setAllMatchPlayers(mp||[])
     setLoading(false)
   }
-
+ 
   const filteredMatches = allMatches.filter(m => {
     const {year,month} = parseDate(m.played_at)
     if (year!==filterYear) return false
@@ -54,28 +54,28 @@ export default function Dashboard() {
   const filteredMatchIds = new Set(filteredMatches.map(m=>m.id))
   const filteredEvents = allEvents.filter(e=>filteredMatchIds.has(e.match_id))
   const filteredMatchPlayers = allMatchPlayers.filter(mp=>filteredMatchIds.has(mp.match_id))
-
+ 
   const availableYears = [...new Set(allMatches.map(m=>parseDate(m.played_at).year))].filter(Boolean).sort((a,b)=>b-a)
   if (!availableYears.includes(now.getFullYear())) availableYears.unshift(now.getFullYear())
-
+ 
   const wins = filteredMatches.filter(m=>m.result==='victoria').length
   const losses = filteredMatches.filter(m=>m.result==='derrota').length
   const total = filteredMatches.length
   const winRate = total>0 ? Math.round((wins/total)*100) : 0
-
-  // Streak calculation (uses ALL matches, not filtered, ordered by sort_order)
-  const recentMatches = [...allMatches].sort((a,b) => a.sort_order - b.sort_order || String(a.played_at).localeCompare(String(b.played_at)))
+ 
+  // Streak: sort_order=0 is the NEWEST match, so sort ascending = newest first
+  const recentMatches = [...allMatches].sort((a,b) => a.sort_order - b.sort_order)
   let streak = 0
   let streakType = ''
   if (recentMatches.length > 0) {
-    const last = recentMatches[recentMatches.length - 1].result
+    const last = recentMatches[0].result  // index 0 = most recent
     streakType = last
-    for (let i = recentMatches.length - 1; i >= 0; i--) {
+    for (let i = 0; i < recentMatches.length; i++) {
       if (recentMatches[i].result === last) streak++
       else break
     }
   }
-
+ 
   // Player table
   const playerTable = players.map(p => {
     const pEvents = filteredEvents.filter(e=>e.player_id===p.id)
@@ -84,7 +84,7 @@ export default function Dashboard() {
     const ppp = matchesPlayed>0 ? parseFloat((totalPts/matchesPlayed).toFixed(2)) : 0
     return { ...p, totalPts, matchesPlayed, ppp }
   }).sort((a,b)=>a.ppp-b.ppp)
-
+ 
   // Category breakdown (count + ratio per player total matches)
   const totalMatchesAllPlayers = total
   const catData = categories.map(c => {
@@ -92,7 +92,7 @@ export default function Dashboard() {
     const ratio = totalMatchesAllPlayers>0 ? parseFloat((count/totalMatchesAllPlayers).toFixed(2)) : 0
     return { name:c.name, count, ratio, points:c.points }
   }).filter(c=>c.count>0).sort((a,b)=>b.count-a.count).slice(0,8)
-
+ 
   // Porotos por mapa (avg per match on that map)
   const mapStats = {}
   filteredMatches.forEach(m => {
@@ -106,7 +106,7 @@ export default function Dashboard() {
     map, avg:parseFloat((d.pts/d.count).toFixed(2)),
     partidas:d.count, wr:Math.round((d.wins/d.count)*100)
   })).sort((a,b)=>a.avg-b.avg)
-
+ 
   // Porotos positivos vs negativos por mapa
   const mapPosNeg = Object.entries(mapStats).map(([map,d]) => {
     const mIds = filteredMatches.filter(m=>m.map===map).map(m=>m.id)
@@ -115,14 +115,14 @@ export default function Dashboard() {
     const neg = Math.abs(mEvents.filter(e=>e.points<0).reduce((s,e)=>s+e.points,0))
     return { map, positivos:pos, negativos:neg, partidas:d.count }
   }).sort((a,b)=>b.partidas-a.partidas)
-
+ 
   // Category ratio per match (how many per game on average)
   const catRatioData = categories.map(c => {
     const count = filteredEvents.filter(e=>e.category_id===c.id).length
     const ratio = total>0 ? parseFloat((count/total).toFixed(3)) : 0
     return { name:c.name, ratio, count, points:c.points }
   }).filter(c=>c.count>0).sort((a,b)=>b.ratio-a.ratio).slice(0,8)
-
+ 
   // Trend
   const trendMatches = filteredMatches.slice(-10)
   const trendData = trendMatches.map(m => {
@@ -132,9 +132,9 @@ export default function Dashboard() {
     })
     return entry
   })
-
+ 
   if (loading) return <div className="loading">Cargando dashboard...</div>
-
+ 
   return (
     <div>
       <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:24}}>
@@ -148,7 +148,7 @@ export default function Dashboard() {
           {MONTHS.map((m,i)=><option key={i} value={i+1}>{m}</option>)}
         </select>
       </div>
-
+ 
       <div className="stat-grid" style={{marginBottom:20}}>
         <div className="stat-card"><div className="stat-label">Partidas</div><div className="stat-value blue">{total}</div></div>
         <div className="stat-card"><div className="stat-label">Victorias</div><div className="stat-value green">{wins}</div></div>
@@ -164,7 +164,7 @@ export default function Dashboard() {
           </div>
         )}
       </div>
-
+ 
       {playerTable.length>0 && (
         <div className="card" style={{marginBottom:16}}>
           <h3>🏆 Tabla de Porotitos</h3>
@@ -191,7 +191,7 @@ export default function Dashboard() {
           <p style={{fontSize:11,color:'var(--text-muted)',marginTop:10}}>↑ Más negativo = mejor rendimiento.</p>
         </div>
       )}
-
+ 
       {total>0 && (
         <>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:16}}>
@@ -213,7 +213,7 @@ export default function Dashboard() {
                 </div>
               </div>
             )}
-
+ 
             {/* Map pos vs neg */}
             {mapPosNeg.length>0 && (
               <div className="card">
@@ -233,7 +233,7 @@ export default function Dashboard() {
               </div>
             )}
           </div>
-
+ 
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:16}}>
             {/* Category count */}
             {catData.length>0 && (
@@ -253,7 +253,7 @@ export default function Dashboard() {
                 </div>
               </div>
             )}
-
+ 
             {/* Category ratio/partida */}
             {catRatioData.length>0 && (
               <div className="card">
@@ -273,7 +273,7 @@ export default function Dashboard() {
               </div>
             )}
           </div>
-
+ 
           {trendData.length>1 && (
             <div className="card">
               <h3>📈 Porotos por partida — últimas 10</h3>
@@ -293,7 +293,7 @@ export default function Dashboard() {
           )}
         </>
       )}
-
+ 
       {total===0 && <div className="empty"><div className="empty-icon">🫘</div><p>Sin partidas en el período seleccionado.</p></div>}
     </div>
   )
