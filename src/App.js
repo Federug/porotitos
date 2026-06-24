@@ -19,7 +19,7 @@ import './App.css'
  
 export const VALORANT_MAPS = [
   'Abyss','Ascent','Bind','Breeze','Fracture',
-  'Haven','Icebox','Lotus','Pearl','Split','Sunset'
+  'Haven','Icebox','Lotus','Pearl','Split','Summit','Sunset'
 ]
  
 function getInitials(n) { return n.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2) }
@@ -168,3 +168,4 @@ function AppInner() {
 export default function App() {
   return <AuthProvider><AppInner /></AuthProvider>
 }
+ 
