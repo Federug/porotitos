@@ -16,16 +16,16 @@ import Toast from './components/Toast'
 import Setup from './components/Setup'
 import { supabase } from './lib/supabase'
 import './App.css'
- 
+
 export const VALORANT_MAPS = [
-  'Abyss','Ascent','Bind','Breeze','Fracture',
+  'Abyss','Ascent','Bind','Breeze','Corrode','Fracture',
   'Haven','Icebox','Lotus','Pearl','Split','Summit','Sunset'
 ]
- 
+
 function getInitials(n) { return n.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2) }
- 
+
 const VALID_PAGES = ['dashboard','personal','comparative','new-match','history','trophies','players','categories','import-export','admin-users']
- 
+
 function BuildTime() {
   // REACT_APP_BUILD_TIME is set by scripts/set-build-time.js during build
   const raw = process.env.REACT_APP_BUILD_TIME
@@ -48,7 +48,7 @@ function BuildTime() {
     )
   } catch { return null }
 }
- 
+
 function AppInner() {
   const { user, player, isAdmin, loading } = useAuth()
   const [page, setPage] = useState(() => {
@@ -58,13 +58,13 @@ function AppInner() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [showChangePassword, setShowChangePassword] = useState(false)
   const [toast, setToast] = useState(null)
- 
+
   // Always call hooks before any conditional returns
   useEffect(() => { window.location.hash = page }, [page])
- 
+
   const isConfigured = !!(process.env.REACT_APP_SUPABASE_URL && process.env.REACT_APP_SUPABASE_ANON_KEY)
   if (!isConfigured) return <Setup />
- 
+
   if (loading) return (
     <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'var(--bg-base)' }}>
       <div style={{ textAlign:'center', color:'var(--text-muted)' }}>
@@ -73,12 +73,12 @@ function AppInner() {
       </div>
     </div>
   )
- 
+
   if (!user) return <Login />
- 
+
   const refresh = () => setRefreshKey(k=>k+1)
   const showToast = (message, type='success') => setToast({ message, type })
- 
+
   const nav = [
     { id:'dashboard',     label:'Dashboard',          icon:'📊' },
     { id:'personal',      label:'Stats Personales',   icon:'👤' },
@@ -91,7 +91,7 @@ function AppInner() {
     { id:'import-export', label:'Importar / Exportar',icon:'📥' },
     ...(isAdmin ? [{ id:'admin-users', label:'Usuarios', icon:'🔐' }] : []),
   ]
- 
+
   return (
     <div className="app">
       <aside className="sidebar">
@@ -102,7 +102,7 @@ function AppInner() {
             <p className="logo-sub">Valorant Tracker</p>
           </div>
         </div>
- 
+
         <nav className="sidebar-nav">
           {nav.map(item => (
             <button
@@ -115,9 +115,9 @@ function AppInner() {
             </button>
           ))}
         </nav>
- 
+
         <BuildTime />
- 
+
         <div style={{ padding:'12px', borderTop:'1px solid var(--border)' }}>
           <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
             {player?.photo_url
@@ -145,7 +145,7 @@ function AppInner() {
           </div>
         </div>
       </aside>
- 
+
       <main className="main-content">
         {page==='dashboard'     && <Dashboard        key={refreshKey} />}
         {page==='personal'      && <PersonalDashboard key={refreshKey} />}
@@ -158,14 +158,13 @@ function AppInner() {
         {page==='import-export' && <ImportExport     key={refreshKey} />}
         {page==='admin-users'   && isAdmin && <AdminUsers key={refreshKey} />}
       </main>
- 
+
       {showChangePassword && <ChangePassword onClose={()=>setShowChangePassword(false)} />}
       {toast && <Toast message={toast.message} type={toast.type} onClose={()=>setToast(null)} />}
     </div>
   )
 }
- 
+
 export default function App() {
   return <AuthProvider><AppInner /></AuthProvider>
 }
- 
