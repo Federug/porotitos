@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import * as XLSX from 'xlsx'
+import { VALORANT_MAPS } from '../App'
 
-const VALORANT_MAPS = ['Abyss','Ascent','Bind','Breeze','Fracture','Haven','Icebox','Lotus','Pearl','Split','Sunset']
 const VALID_RESULTS = ['victoria','derrota','empate']
 
 // ─── BACKUP ────────────────────────────────────────────────────────────────────
